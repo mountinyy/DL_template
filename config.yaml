@@ -1,0 +1,16 @@
+common:
+  seed: 12345
+  batch_size: 8
+  learning_rate: 3e-5
+  num_train_epochs: 20
+  dataset_path: /home/sankm/CTrasa/emotion_clf/data
+  gzip: True
+
+wandb:
+  project_name: CT-emotion-classification
+  run_name: augmented_300
+
+model:
+  num_labels: 5
+  save_path: /home/sankm/CTrasa/emotion_clf/saved_models
+  save_name: aug_300
