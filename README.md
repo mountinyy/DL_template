@@ -50,3 +50,7 @@ make test
 ```bash
 make style
 ```
+
+# Reference
+- The base template was originated from [monologg](https://github.com/monologg).
+- You can find original python-template from [link](https://github.com/monologg/python-template).
