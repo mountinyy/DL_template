@@ -78,6 +78,7 @@ def train_model(conf, args):
                 outputs, correct = run_model("valid", model, contexts, attention_mask, labels)
 
                 total_loss += outputs["loss"].detach().cpu()
+                total_correct += correct
 
             log_metric(
                 "valid",
