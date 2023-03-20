@@ -28,7 +28,7 @@ def train_model(conf, args):
 
     # Model 설정 (model, tokenizer, (config))
     model = None
-    tokenizer = None
+    # tokenizer = None
 
     # Train Parameter 설정
     optimizer = None
@@ -48,8 +48,8 @@ def train_model(conf, args):
         model.to(device)
         model.train()
         for data in tqdm(train_dataloader, desc=f"train {epoch} epochs"):
-            contexts, labels = extract_data(data, tokenizer, device)
-            outputs, correct = run_model("train", model, contexts, labels)
+            contexts, attention_mask, labels = extract_data(data, device)
+            outputs, correct = run_model("train", model, contexts, attention_mask, labels)
             total_correct += correct
 
             optimizer.zero_grad()
@@ -74,8 +74,8 @@ def train_model(conf, args):
         total_correct = 0
         with torch.no_grad():
             for data in tqdm(valid_dataloader, desc=f"valid {epoch} epochs"):
-                contexts, labels = extract_data(data, tokenizer, device)
-                outputs, correct = run_model("valid", model, contexts, labels)
+                contexts, attention_mask, labels = extract_data(data, device)
+                outputs, correct = run_model("valid", model, contexts, attention_mask, labels)
 
                 total_loss += outputs["loss"].detach().cpu()
 
@@ -97,56 +97,54 @@ def train_model(conf, args):
             scheduler.step(accuracy)
 
 
-def extract_data(data, tokenizer, device) -> Tuple[torch.Tensor, torch.Tensor]:
+def extract_data(data, device) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Extract data from batch.
     Currently assume batch data is dict type with key 'context', 'label'.
     For context data, tokenized context will be returned.
 
     Args:
         data (dict): batch data with { 'context': (batch_size, context), 'label': (batch_size, label)}
-        tokenizer (transformers.Tokenizer): Tokenizer for tokenized context
         device : device which train is performed.
 
     Returns:
-        Tuple (tokenized_context, labels): (bz, max_len) 크기의 tokenized_context와 labels 리턴
+        Tuple (context, attention_mask, labels): (bz, max_len) 크기의 tokenized_context와 labels 리턴
     """
-    contexts = [batch["context"] for batch in data]
+    contexts = torch.LongTensor([batch["context"]["input_ids"] for batch in data]).to(device)
+    attention_mask = torch.LongTensor([batch["context"]["attention_mask"] for batch in data]).to(device)
     labels = torch.LongTensor([batch["label"] for batch in data]).to(device)
-    tokenized_contexts = tokenizer(
-        contexts, padding="max_length", truncation=True, max_length=512, return_tensors="pt"
-    ).to(device)
-    return (tokenized_contexts, labels)
+    return (contexts, attention_mask, labels)
 
 
-def run_model(run_type, model, contexts, labels):
+def run_model(run_type, model, contexts, attention_mask, labels):
     """Return model outputs and the correct counts compared to labels.
 
     Args:
         run_type (str): Decide whether to log as 'train' or 'valid'.
         model : model to train
         contexts : contexts for input
+        attention_mask : attention_mask for input
         labels : ground truth label.
 
     Returns:
         tuple of (model outputs, correct_count)
     """
     assert run_type in ["train", "valid"], f"no valid run_type for {run_type}"
-    outputs = model(**contexts, labels=labels)
+    outputs = model(contexts, attention_mask, labels=labels)
     predicted = outputs["logits"].argmax(dim=-1)
     correct = (predicted == labels).sum().datach().cpu().item()
     wandb.log({f"{run_type}/loss": outputs["loss"]})
     return (outputs, correct)
 
 
-def log_metric(name, **kwargs):
+def log_metric(name, values):
     """logs metric to wandb.
     User can update for custom metrics.
 
     Args:
         name (str): name for log. Currently either "train" or "valid"
     """
-    mean_loss = kwargs["total_loss"] / kwargs["len_dataloader"]
-    accuracy = kwargs["total_correct"] / kwargs["len_dataset"]
+    mean_loss = values["total_loss"] / values["len_dataloader"]
+    accuracy = values["total_correct"] / values["len_dataset"]
     wandb.log(
         {
             f"{name}/mean_loss": mean_loss,
