@@ -5,7 +5,7 @@ import numpy as np
 import torch
 from omegaconf import OmegaConf
 
-from train.train import train
+from src.train import train
 
 
 def get_args():
